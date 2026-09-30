@@ -145,12 +145,12 @@ Frontend and contract tests exercise wallet discovery, 1AM preference, network s
 
 ### Render
 
-Create a Blueprint from `render.yaml`. Add these secret or site-specific variables:
+Create a Blueprint from `render.yaml`; the API is set to Render's Free plan and auto-deploys from the linked branch. Free web services sleep after 15 minutes without traffic and can take about a minute to wake. The free service has an ephemeral filesystem, so use Neon/Postgres rather than SQLite for deployed data. The Blueprint runs Alembic at startup because Render pre-deploy commands require a paid service. Add these secret or site-specific variables:
 
 - `DATABASE_URL`: pooled Neon URL
 - `DATABASE_DIRECT_URL`: direct Neon URL
 - `CORS_ORIGINS`: exact Netlify HTTPS origin
-- `GEMINI_ENABLED=true` and `GEMINI_API_KEY` to enable Gemini
+- `GEMINI_ENABLED=true` and `GEMINI_API_KEY` in the Render dashboard only if you want to enable Gemini guidance
 
 The service runs Alembic before starting Uvicorn. `AUTO_CREATE_TABLES=false` is enforced in production.
 
