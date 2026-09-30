@@ -14,6 +14,10 @@ The visual language is Brazilian Afrofuturist neo-industrial: circular public in
 
 ![RODA commission catalogue](docs/screenshots/website-commissions.png)
 
+## Demo Video URL
+
+[Watch the RODA demo](https://drive.google.com/file/d/1KKgmUK8yRYkoJn2TV5fM_m-s27csXUMI/view?usp=sharing)
+
 ## Product boundary
 
 The included catalog contains three clearly marked sample commissions. It demonstrates real Midnight Preview/Preprod wallet and contract flows without claiming live participation, funding, escrow, automatic winner selection, or payment settlement.
@@ -159,6 +163,10 @@ Frontend and contract tests exercise wallet discovery, 1AM preference, network s
 ## Deploy to Netlify and Render
 
 GitHub Actions runs the frontend/Compact and FastAPI checks on pushes and pull requests. Render waits for passing GitHub checks before deploying. Netlify deploys from its connected GitHub branch.
+
+### Working CI/CD Pipeline
+
+![Successful GitHub Actions CI run](docs/screenshots/ci-cd-success.png)
 
 ### Render
 
