@@ -1,0 +1,21 @@
+RODA verification report
+Generated: 2026-09-28T18:24:25.460Z
+
+FRONTEND + GENERATED COMPACT CONTRACT
+> roda-private-bidding@1.0.0 test
+> vitest run
+
+
+ RUN  v5.0.2 D:/Midnight - Naseef
+
+
+ Test Files  4 passed (4)
+      Tests  34 passed (34)
+   Start at  23:54:18
+   Duration  4.80s (environment 50%, tests 22%, setup 14%, import 9%, transform 5%)
+
+FASTAPI + PRIVACY BOUNDARY
+.........                                                                [100%]
+9 passed in 1.11s
+
+RESULT: ALL TESTS PASSED
