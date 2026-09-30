@@ -119,8 +119,16 @@ export async function execute(operation: Operation, action: Action): Promise<Dep
     const providers = await makeProviders(operation, action);
     if (action === 'deploy') {
       if (readDeployment(operation.scope)) throw new Error('Worker contract already deployed');
-      operation.checkpoint?.('preparing the worker contract and loading its verifier artifacts');
+      operation.checkpoint?.('computing the public room identifier');
       const roomHash = new Uint8Array(Buffer.from(await digest(operation.room.id), 'hex'));
+      operation.checkpoint?.('initializing the worker contract');
+      const loadVerifierKey = providers.zkConfigProvider.getVerifierKey.bind(providers.zkConfigProvider);
+      providers.zkConfigProvider.getVerifierKey = async (circuitId) => {
+        operation.checkpoint?.(`loading the ${circuitId} verifier artifact`);
+        const key = await loadVerifierKey(circuitId);
+        operation.checkpoint?.(`loaded the ${circuitId} verifier artifact`);
+        return key;
+      };
       const unsubmitted = await createUnprovenDeployTx(providers, {
         compiledContract: compiled, initialPrivateState: operation.offer, signingKey: sampleSigningKey(),
         args: [roomHash, BigInt(operation.room.minimum), BigInt(operation.room.maximum), BigInt(Date.parse(operation.room.deadline) / 1000)],
