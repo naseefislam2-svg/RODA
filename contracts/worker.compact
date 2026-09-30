@@ -1,0 +1,83 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// A worker-owned, single-room isSealed offer. No escrow or token transfer.
+export ledger room: Bytes<32>;
+export ledger minimum: Uint<64>;
+export ledger maximum: Uint<64>;
+export ledger closesAt: Uint<64>;
+export ledger owner: Bytes<32>;
+export ledger commitment: Bytes<32>;
+export ledger nullifiers: Set<Bytes<32>>;
+export ledger isSealed: Boolean;
+export ledger opened: Boolean;
+export ledger withdrawn: Boolean;
+export ledger openedAmount: Uint<64>;
+export ledger acceptedOffers: Counter;
+
+witness workerSecret(): Bytes<32>;
+witness offerAmount(): Uint<64>;
+witness offerSalt(): Bytes<32>;
+
+constructor(roomId: Bytes<32>, floor: Uint<64>, ceiling: Uint<64>, deadline: Uint<64>) {
+  assert(floor > 0 && ceiling >= floor, "Invalid public price band");
+  // These parameters are the public commission policy, never bid data.
+  room = disclose(roomId);
+  minimum = disclose(floor);
+  maximum = disclose(ceiling);
+  closesAt = disclose(deadline);
+  // Only a one-way, domain-separated ownership commitment is published.
+  owner = disclose(persistentHash<Vector<2, Bytes<32>>>([pad(32, "roda:owner:v1"), workerSecret()]));
+}
+
+circuit authenticate(): [] {
+  assert(persistentHash<Vector<2, Bytes<32>>>([pad(32, "roda:owner:v1"), workerSecret()]) == owner,
+    "This worker vault belongs to another secret");
+}
+
+circuit offerCommitment(): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "roda:offer:v1"), room, offerSalt(),
+    persistentHash<Uint<64>>(offerAmount())
+  ]);
+}
+
+export circuit seal(): [] {
+  authenticate();
+  assert(!isSealed && !withdrawn, "Offer already consumed");
+  assert(blockTimeLt(closesAt), "Bidding is closed");
+  const amount = offerAmount();
+  // Disclose only the two range predicates; the exact amount stays private.
+  assert(disclose(amount >= minimum), "Offer is below the public floor");
+  assert(disclose(amount <= maximum), "Offer is above the public ceiling");
+  const nullifier = persistentHash<Vector<3, Bytes<32>>>([pad(32, "roda:nullifier:v1"), room, workerSecret()]);
+  // Publishes an unlinkable per-room replay tag, never the secret.
+  const publicNullifier = disclose(nullifier);
+  assert(!nullifiers.member(publicNullifier), "Offer already submitted");
+  nullifiers.insert(publicNullifier);
+  // Salted commitment binds the hidden amount for a later voluntary opening.
+  commitment = disclose(offerCommitment());
+  isSealed = true;
+  acceptedOffers.increment(1);
+}
+
+export circuit open(): [] {
+  authenticate();
+  assert(isSealed && !opened && !withdrawn, "No unopened offer");
+  assert(blockTimeGte(closesAt), "Opening is not available yet");
+  assert(offerCommitment() == commitment, "Offer does not match the isSealed commitment");
+  // Explicit, irreversible user-approved disclosure AFTER the public deadline.
+  openedAmount = disclose(offerAmount());
+  opened = true;
+}
+
+export circuit withdraw(): [] {
+  authenticate();
+  assert(isSealed && !opened && !withdrawn, "No active offer");
+  assert(blockTimeLt(closesAt), "Withdrawal period has ended");
+  withdrawn = true;
+  acceptedOffers.decrement(1);
+  // The spent nullifier remains, preventing re-entry into this worker vault.
+}
+
