@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "contract:compile": "node scripts/compile-contract.mjs",
+    "contract:sync": "node scripts/artifacts.mjs sync",
+    "contract:build": "npm run contract:compile && npm run contract:sync",
     "contract:verify": "node scripts/artifacts.mjs verify",
     "check": "npm run contract:verify && npm run lint && npm test && npm run build"
   },

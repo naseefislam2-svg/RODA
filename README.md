@@ -78,15 +78,15 @@ curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/midnightntwrk/compact/releases/download/compact-v0.5.2/compact-installer.sh | sh
 compact update 0.31.1
 compact compile --version
-npm run contract:compile
-node scripts/artifacts.mjs sync
+npm run contract:build
+npm run contract:verify
 ```
 
-`npm run contract:verify` hashes the source and every generated artifact, then checks that the browser copies match. Do not use a newer unpinned compiler unless the target-network compatibility matrix changes.
+Run the compiler install and `compact update` inside your default WSL2 Linux distribution. From Windows, `npm run contract:build` invokes that WSL2 distribution, compiles with the pinned 0.31.1 toolchain, copies the generated ZKIR and proving/verifier keys into `public/contract`, and refreshes the artifact manifest. `npm run contract:verify` hashes the source and generated artifacts, then checks the browser copies. Do not use a newer unpinned compiler unless the target-network compatibility matrix changes.
 
 ## Wallet and real browser deployment
 
-1. Install 1AM and select Preview or Preprod in RODA.
+1. Install 1AM and select Preview or Preprod in RODA. RODA only offers connector API v4 providers identified as 1AM; other injected wallet providers are ignored.
 2. Fund the selected test wallet with tNIGHT and register it for DUST generation.
 3. Open a sample commission, set an in-band offer, and save the encrypted local vault.
 4. Export the private backup. Keep it and the passphrase safe.

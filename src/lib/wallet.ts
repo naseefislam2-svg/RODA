@@ -6,15 +6,19 @@ export interface WalletSession {
   api: ConnectedAPI; config: Configuration; name: string; network: Network;
   coinPublicKey: string; encryptionPublicKey: string; fingerprint: string;
 }
-export const is1AM = (wallet: WalletChoice) => /(^|[.\s])1am([.\s]|$)/i.test(`${wallet.api.name} ${wallet.api.rdns}`);
+const ONE_AM_NAME = /(?:^|\s)1\s*am(?:\s+wallet)?(?:$|\s)/i;
+const ONE_AM_RDNS = /(?:^|[._-])(?:1am|oneam)(?:[._-]|$)/i;
+export const is1AM = (wallet: WalletChoice) =>
+  wallet.api.apiVersion.split('.')[0] === '4'
+  && (ONE_AM_NAME.test(wallet.api.name.trim()) || ONE_AM_RDNS.test(wallet.api.rdns ?? ''));
 export function discoverWallets(injected: unknown = window.midnight): WalletChoice[] {
   if (!injected || typeof injected !== 'object') return [];
   return Object.entries(injected).filter(([id, api]) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
     && api && typeof api.name === 'string' && typeof api.rdns === 'string'
-    && /^4\.\d+\.\d+$/.test(api.apiVersion) && typeof api.connect === 'function',
-  ).map(([id, api]) => ({ id, api: api as InitialAPI }))
-    .sort((a, b) => Number(is1AM(b)) - Number(is1AM(a)));
+    && typeof api.apiVersion === 'string' && typeof api.connect === 'function'
+    && is1AM({ id, api: api as InitialAPI }),
+  ).map(([id, api]) => ({ id, api: api as InitialAPI }));
 }
 export async function digest(value: string): Promise<string> {
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));

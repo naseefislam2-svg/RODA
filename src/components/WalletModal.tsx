@@ -10,8 +10,8 @@ export function WalletModal({ onClose, onConnect, session, disconnect, error }: 
   const [pending, setPending] = useState(false);
   useEffect(() => { const timer = setInterval(() => setWallets(discoverWallets()), 1500); return () => clearInterval(timer); }, []);
   const duplicates = wallets.some((wallet, index) => wallets.findIndex(w => w.api.rdns === wallet.api.rdns) !== index);
-  return <Modal title={session ? 'You’re connected.' : 'A wallet. Your own workspace.'} onClose={onClose} busy={pending}>
-    <p className="muted">Connect 1AM to create a worker contract in your browser. You approve every transaction in your wallet.</p>
+  return <Modal title={session ? 'You’re connected.' : 'Your 1AM. Your own workspace.'} onClose={onClose} busy={pending}>
+    <p className="muted">RODA connects to 1AM to create your worker contract in this browser. You approve every transaction in 1AM.</p>
     {session ? <div className="wallet-connected"><Check/><div><strong>{session.name}</strong><span>{session.network} · Session connected</span></div><button className="text-button" onClick={disconnect}>Disconnect</button></div> : <>
       {duplicates && <p role="alert" className="error">More than one provider uses the same wallet identity. Verify your installed extensions before connecting.</p>}
       {wallets.map(wallet => <button key={wallet.id} className="wallet-option" disabled={pending || duplicates} onClick={async () => { setPending(true); try { await onConnect(wallet); } finally { setPending(false); } }}>
