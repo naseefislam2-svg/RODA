@@ -143,6 +143,8 @@ Frontend and contract tests exercise wallet discovery, 1AM preference, network s
 
 ## Deploy to Netlify and Render
 
+GitHub Actions runs the frontend/Compact and FastAPI checks on pushes and pull requests. Render waits for passing GitHub checks before deploying. Netlify deploys from its connected GitHub branch.
+
 ### Render
 
 Create a Blueprint from `render.yaml`; the API is set to Render's Free plan and auto-deploys from the linked branch. Free web services sleep after 15 minutes without traffic and can take about a minute to wake. The free service has an ephemeral filesystem, so use Neon/Postgres rather than SQLite for deployed data. The Blueprint runs Alembic at startup because Render pre-deploy commands require a paid service. Add these secret or site-specific variables:
