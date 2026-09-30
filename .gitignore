@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/roda.db
+__pycache__/
+.env
+.env.*
+!.env.example
+!backend/.env.example
+artifacts/screenshots/*.tmp.png
