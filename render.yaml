@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: roda-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    preDeployCommand: uv run --no-sync alembic upgrade head
+    startCommand: uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTO_CREATE_TABLES
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_DIRECT_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_ENABLED
+        value: "false"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
