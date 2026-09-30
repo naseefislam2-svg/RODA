@@ -29,6 +29,7 @@ export function BidWorkspace({ room, session, onClose, onConnect, onUpdate }: {
   const [openReview, setOpenReview] = useState(false);
   const [withdrawReview, setWithdrawReview] = useState(false);
   const [stage, setStage] = useState<Stage | null>(null);
+  const [failureCheckpoint, setFailureCheckpoint] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -51,7 +52,7 @@ export function BidWorkspace({ room, session, onClose, onConnect, onUpdate }: {
 
   async function save() {
     if (!session || !scope || lock.current) return;
-    lock.current = true; setBusy(true); setError(''); setNotice('');
+    lock.current = true; setBusy(true); setError(''); setNotice(''); setFailureCheckpoint('');
     try {
       // Use the SDK's password policy before any deployment or secret is created.
       const { validatePassword } = await import('@midnight-ntwrk/midnight-js-utils');
@@ -72,12 +73,12 @@ export function BidWorkspace({ room, session, onClose, onConnect, onUpdate }: {
   }
   async function transact(action: Action | 'recover') {
     if (!session || !offer || lock.current) return;
-    lock.current = true; setBusy(true); setError(''); setNotice(''); setStage('preparing');
+    lock.current = true; setBusy(true); setError(''); setNotice(''); setStage('preparing'); setFailureCheckpoint('Starting the transaction');
     try {
       const { execute, recover } = await import('../lib/midnight');
-      const operation = { session, room, scope, offer, password, stage: setStage };
+      const operation = { session, room, scope, offer, password, stage: setStage, checkpoint: setFailureCheckpoint };
       const result = await (action === 'recover' ? recover(operation) : execute(operation, action));
-      setRecord(result); setPending(null); setPublicShared(false); onUpdate();
+      setRecord(result); setPending(null); setPublicShared(false); setFailureCheckpoint(''); onUpdate();
     } catch (err) { setError(friendlyError(err)); setStage(null); setPending(readPending(scope)); }
     finally { lock.current = false; setBusy(false); }
   }
@@ -125,7 +126,7 @@ export function BidWorkspace({ room, session, onClose, onConnect, onUpdate }: {
         {record && <div className="receipt-actions"><button className="text-button" onClick={() => download('roda-public-receipt.json', JSON.stringify(record, null, 2))}><Download size={14}/> Public receipt</button><button className="text-button" disabled={publicShared || busy} onClick={async () => { try { const ok = await publishReceipt(record.lastReceipt); setPublicShared(ok); setNotice(ok ? 'Public receipt shared. The API labels it as client-reported.' : 'Public sharing is unavailable. Your finalized receipt is still saved locally.'); } catch { setNotice('Public sharing is unavailable. Your local receipt is safe.'); } }}>{publicShared ? 'Public receipt shared' : 'Share public receipt'}</button></div>}
       </section>
       {stage && <div className="proof-progress" role="status" aria-live="polite">{phases.map((phase, index) => { const current = phases.findIndex(p => p.id === stage); return <div key={phase.id} className={index <= current ? 'reached' : ''}><motion.span animate={index === current && busy ? { opacity: [.4, 1, .4] } : { opacity: 1 }} transition={{ duration: 1.5, repeat: Infinity }}>{index < current || stage === 'done' ? <Check size={14}/> : index + 1}</motion.span><span><strong>{phase.name}</strong>{index === current && <small>{phase.detail}</small>}</span></div>; })}</div>}
-      {error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+      {error && <><p className="error" role="alert">{error}</p>{failureCheckpoint && <p className="notice" role="status">Stopped while {failureCheckpoint}. This checkpoint contains no offer or wallet data.</p>}</>}{notice && <p className="notice" role="status">{notice}</p>}
     </div>
     <aside className="workspace-aside"><span className="eyebrow"><Sparkles size={14}/> THE BRIEF, MADE CLEAR</span><h3>A little clarity.<br/>A better starting point.</h3><p>Explore the public brief without sharing a single detail of your offer.</p><div className="assistant-options"><button onClick={() => void ask('brief')} disabled={thinking}>Explain the brief <ArrowUpRight size={14}/></button><button onClick={() => void ask('privacy')} disabled={thinking}>What stays private? <ArrowUpRight size={14}/></button><button onClick={() => void ask('checklist')} disabled={thinking}>My bidding checklist <ArrowUpRight size={14}/></button></div><div className="guidance-answer" aria-live="polite">{thinking ? <p>Reading the public brief…</p> : <><span className="pill">{guidance.source === 'gemini' ? 'Gemini · public context only' : 'Local guide · no AI request'}</span><p>{guidance.summary}</p><ol>{guidance.steps.map(step => <li key={step}>{step}</li>)}</ol><p className="fine-print">{guidance.privacy_note}</p></>}</div><div className="aside-note"><Fingerprint size={24}/><strong>Your effort has value.</strong><p>You set your price without watching anyone else’s. That’s the point.</p></div></aside>
     </div>

@@ -1,7 +1,8 @@
 import { Buffer } from 'buffer';
 import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import { Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { sampleSigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { createUnprovenDeployTx, findDeployedContract, submitTx } from '@midnight-ntwrk/midnight-js-contracts';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
@@ -29,17 +30,27 @@ let active = false;
 interface Operation {
   session: WalletSession; room: Room; scope: string; password: string; offer: PrivateOffer;
   stage: (stage: Stage) => void;
+  checkpoint?: (checkpoint: string) => void;
 }
 
 async function makeProviders(operation: Operation, action: Action) {
-  const { session, scope, password, stage } = operation;
+  const { session, scope, password, stage, checkpoint } = operation;
+  checkpoint?.('requesting 1AM permission for the transaction methods');
+  await session.api.hintUsage([
+    'getConnectionStatus', 'getConfiguration', 'getShieldedAddresses', 'getProvingProvider',
+    'balanceUnsealedTransaction', 'submitTransaction',
+  ]);
+  checkpoint?.('checking the 1AM connection');
   const status = await session.api.getConnectionStatus();
   if (status.status !== 'connected' || status.networkId !== session.network) throw new Error('NETWORK_MISMATCH');
   setNetworkId(session.network);
+  checkpoint?.('reading the selected network configuration');
   const config = await session.api.getConfiguration();
   if (config.networkId !== session.network) throw new Error('NETWORK_MISMATCH');
+  checkpoint?.('checking the connected wallet account');
   const current = await session.api.getShieldedAddresses();
   if (current.shieldedCoinPublicKey !== session.coinPublicKey) throw new Error('STALE_SESSION');
+  checkpoint?.('initializing the 1AM proving provider');
   const zkConfigProvider = new FetchZkConfigProvider<Circuit>(`${window.location.origin}/contract`);
   // Delegate to the user's chosen wallet proving environment. Do not send witness
   // material to the application API, Gemini, or an app-controlled remote prover.
@@ -53,13 +64,14 @@ async function makeProviders(operation: Operation, action: Action) {
   const originalSetAddress = privateStateProvider.setContractAddress.bind(privateStateProvider);
   privateStateProvider.setContractAddress = (value) => { address = value; originalSetAddress(value); };
   const providers: MidnightProviders<Circuit, 'worker', PrivateOffer> = {
-    privateStateProvider, zkConfigProvider,
-    publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri, window.WebSocket),
-    proofProvider: { proveTx: (tx, config) => { stage('proving'); return proof.proveTx(tx, config); } },
+      privateStateProvider, zkConfigProvider,
+      publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri, window.WebSocket),
+    proofProvider: { proveTx: (tx, config) => { checkpoint?.('generating the zero-knowledge proof'); stage('proving'); return proof.proveTx(tx, config); } },
     walletProvider: {
       getCoinPublicKey: () => session.coinPublicKey,
       getEncryptionPublicKey: () => session.encryptionPublicKey,
       balanceTx: async (tx) => {
+        checkpoint?.('waiting for 1AM transaction approval');
         stage('approving');
         const result = await session.api.balanceUnsealedTransaction(Buffer.from(tx.serialize()).toString('hex'));
         return Transaction.deserialize('signature', 'proof', 'binding', Buffer.from(result.tx, 'hex'));
@@ -69,9 +81,11 @@ async function makeProviders(operation: Operation, action: Action) {
       submitTx: async (tx) => {
         const txId = tx.identifiers()[0];
         if (!txId || !address) throw new Error('Missing transaction recovery data');
+        checkpoint?.('submitting the approved transaction');
         // Save BEFORE submission: a transport failure may still mean the node received it.
         savePending(scope, { contractAddress: address, txId, action, submittedAt: new Date().toISOString() });
         await session.api.submitTransaction(Buffer.from(tx.serialize()).toString('hex'));
+        checkpoint?.('waiting for Midnight finalization');
         stage('finalizing');
         return txId;
       },
@@ -105,12 +119,19 @@ export async function execute(operation: Operation, action: Action): Promise<Dep
     const providers = await makeProviders(operation, action);
     if (action === 'deploy') {
       if (readDeployment(operation.scope)) throw new Error('Worker contract already deployed');
+      operation.checkpoint?.('preparing the worker contract and loading its verifier artifacts');
       const roomHash = new Uint8Array(Buffer.from(await digest(operation.room.id), 'hex'));
-      const deployed = await deployContract(providers, {
-        compiledContract: compiled, privateStateId: 'worker', initialPrivateState: operation.offer,
+      const unsubmitted = await createUnprovenDeployTx(providers, {
+        compiledContract: compiled, initialPrivateState: operation.offer, signingKey: sampleSigningKey(),
         args: [roomHash, BigInt(operation.room.minimum), BigInt(operation.room.maximum), BigInt(Date.parse(operation.room.deadline) / 1000)],
       });
-      return retain(operation, receiptFrom(deployed.deployTxData.public, deployed.deployTxData.public.contractAddress, operation, action));
+      const address = unsubmitted.public.contractAddress;
+      providers.privateStateProvider.setContractAddress(address);
+      await providers.privateStateProvider.set('worker', unsubmitted.private.initialPrivateState);
+      await providers.privateStateProvider.setSigningKey(address, unsubmitted.private.signingKey);
+      const finalized = await submitTx(providers, { unprovenTx: unsubmitted.private.unprovenTx });
+      if (finalized.status !== 'SucceedEntirely') throw new Error('The transaction failed on chain');
+      return retain(operation, receiptFrom(finalized, address, operation, action));
     }
     const record = readDeployment(operation.scope);
     if (!record) throw new Error('Deploy your worker contract first');
@@ -132,6 +153,7 @@ export async function recover(operation: Operation): Promise<Deployment> {
   if (!pending) throw new Error('No pending transaction');
   active = true;
   try {
+    operation.checkpoint?.('checking the pending transaction');
     operation.stage('finalizing');
     const providers = await makeProviders(operation, pending.action);
     const finalized = await providers.publicDataProvider.watchForTxData(pending.txId);
