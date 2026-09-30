@@ -4,6 +4,7 @@ import { Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { sampleSigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { createUnprovenDeployTx, findDeployedContract, submitTx } from '@midnight-ntwrk/midnight-js-contracts';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
@@ -16,6 +17,10 @@ import { clearPending, readDeployment, readPending, saveDeployment, savePending,
 
 type Circuit = 'seal' | 'open' | 'withdraw';
 export type Stage = 'preparing' | 'proving' | 'approving' | 'finalizing' | 'done';
+function artifactBaseUrl(): string {
+  const root = import.meta.env.VITE_MIDNIGHT_ARTIFACT_BASE_URL || '/contract';
+  return new URL(`${root.replace(/\/$/, '')}/`, window.location.origin).toString();
+}
 export const witnesses: Witnesses<PrivateOffer> = {
   workerSecret: ({ privateState }) => [privateState, privateState.secret],
   offerAmount: ({ privateState }) => [privateState, privateState.amount],
@@ -51,11 +56,16 @@ async function makeProviders(operation: Operation, action: Action) {
   const current = await session.api.getShieldedAddresses();
   if (current.shieldedCoinPublicKey !== session.coinPublicKey) throw new Error('STALE_SESSION');
   checkpoint?.('initializing the 1AM proving provider');
-  const zkConfigProvider = new FetchZkConfigProvider<Circuit>(`${window.location.origin}/contract`);
+  const zkConfigProvider = new FetchZkConfigProvider<Circuit>(artifactBaseUrl(), window.fetch.bind(window));
   // Delegate to the user's chosen wallet proving environment. Do not send witness
   // material to the application API, Gemini, or an app-controlled remote prover.
   const provingProvider = await session.api.getProvingProvider(zkConfigProvider);
-  const proof = createProofProvider(provingProvider);
+  const proof = provingProvider
+    ? createProofProvider(provingProvider)
+    : config.proverServerUri
+      ? httpClientProofProvider(config.proverServerUri, zkConfigProvider)
+      : null;
+  if (!proof) throw new Error('1AM did not provide a proving service and no wallet-configured prover URL is available.');
   const privateStateProvider = levelPrivateStateProvider<'worker', PrivateOffer>({
     midnightDbName: `roda-${session.network}`, accountId: session.fingerprint,
     privateStoragePasswordProvider: () => password,
@@ -64,8 +74,8 @@ async function makeProviders(operation: Operation, action: Action) {
   const originalSetAddress = privateStateProvider.setContractAddress.bind(privateStateProvider);
   privateStateProvider.setContractAddress = (value) => { address = value; originalSetAddress(value); };
   const providers: MidnightProviders<Circuit, 'worker', PrivateOffer> = {
-      privateStateProvider, zkConfigProvider,
-      publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri, window.WebSocket),
+    privateStateProvider, zkConfigProvider,
+    publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri, window.WebSocket),
     proofProvider: { proveTx: (tx, config) => { checkpoint?.('generating the zero-knowledge proof'); stage('proving'); return proof.proveTx(tx, config); } },
     walletProvider: {
       getCoinPublicKey: () => session.coinPublicKey,

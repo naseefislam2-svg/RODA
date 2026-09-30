@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_MIDNIGHT_ARTIFACT_BASE_URL = "/contract"
 
 [[headers]]
   for = "/*"
