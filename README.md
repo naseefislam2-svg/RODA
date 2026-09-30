@@ -6,6 +6,14 @@ The visual language is Brazilian Afrofuturist neo-industrial: circular public in
 
 ![RODA bidder community interface](docs/screenshots/roda-home.png)
 
+## Screenshot of Website
+
+**Live website URL:** [https://snazzy-dragon-846ef1.netlify.app/](https://snazzy-dragon-846ef1.netlify.app/)
+
+![RODA website homepage](docs/screenshots/website-homepage.png)
+
+![RODA commission catalogue](docs/screenshots/website-commissions.png)
+
 ## Product boundary
 
 The included catalog contains three clearly marked sample commissions. It demonstrates real Midnight Preview/Preprod wallet and contract flows without claiming live participation, funding, escrow, automatic winner selection, or payment settlement.
@@ -97,6 +105,13 @@ Run the compiler install and `compact update` inside your default WSL2 Linux dis
 
 No success UI or receipt is created before Midnight.js returns finalized transaction data. If submission becomes uncertain, RODA retains the transaction ID and requires recovery before another write.
 
+## Preprod
+
+| Deployment detail | Value |
+| --- | --- |
+| Contract address | `6e62f48491d288ac3a63e056c592bc7ec9101aedfbab26e2781f81d502e8d3d8` |
+| Deployment transaction hash | `033458c68acf7fa85390fc351c511a7aa2d32b7eefeed7d50dcc7b840abe6982` |
+
 ## Proof server
 
 RODA delegates proof generation through `ConnectedAPI.getProvingProvider`, so it uses the proving environment configured in 1AM. A prover can observe private witness material. Configure the wallet to use a local or trusted prover.
@@ -160,7 +175,7 @@ The service runs Alembic before starting Uvicorn. `AUTO_CREATE_TABLES=false` is 
 
 Create a site from this folder using `netlify.toml`. Set `VITE_API_URL` to the Render origin, then deploy. The generated proving artifacts are served with immutable caching. Add the final Netlify domain to `CORS_ORIGINS` before enabling the site.
 
-There is no live demo URL in this folder because no deployment was performed and no URL is invented.
+The deployed frontend URL and screenshots are listed in [Screenshot of Website](#screenshot-of-website).
 
 ## Known limitations
 
