@@ -8,17 +8,18 @@ function provider(name = '1AM', apiVersion = '4.0.1') {
       getShieldedAddresses: async () => ({ shieldedCoinPublicKey: 'a'.repeat(64), shieldedEncryptionPublicKey: 'b'.repeat(64) }) })) };
 }
 describe('wallet discovery and sessions', () => {
-  it('discovers only UUID keyed 1AM providers', () => {
-    const wallets = discoverWallets({ [otherId]: provider('Other'), [firstId]: provider() });
+  it('discovers 1AM regardless of the provider registry key shape', () => {
+    const wallets = discoverWallets({ '1am-provider': provider(), [otherId]: provider('Other') });
     expect(wallets.map(w => w.api.name)).toEqual(['1AM']);
   });
-  it('rejects old APIs and non-UUID injection keys', () => {
-    expect(discoverWallets({ invalid: provider(), [firstId]: provider('1AM', '3.0.0'), [otherId]: { name: 'broken' } })).toEqual([]);
+  it('rejects old APIs and malformed providers', () => {
+    expect(discoverWallets({ invalid: provider('1AM', '3.0.0'), [firstId]: { name: 'broken' } })).toEqual([]);
   });
-  it('recognizes 1AM by provider name or reverse domain on connector API v4', () => {
+  it('recognizes 1AM by provider name or reverse domain on connector API v4 without requiring both fields', () => {
     const named = provider('1AM Wallet', '4.2.0');
+    const nameOnly = { ...provider('1AM'), rdns: undefined };
     const rdnsOnly = { ...provider('Midnight Wallet'), rdns: 'xyz.oneam.wallet' };
-    expect(discoverWallets({ [firstId]: named, [otherId]: rdnsOnly })).toHaveLength(2);
+    expect(discoverWallets({ [firstId]: named, 'name-only': nameOnly, [otherId]: rdnsOnly })).toHaveLength(3);
   });
   it('does not accept a generic wallet merely because it implements connector API v4', () => {
     expect(discoverWallets({ [otherId]: provider('Midnight Wallet') })).toEqual([]);

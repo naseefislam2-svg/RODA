@@ -8,15 +8,20 @@ export interface WalletSession {
 }
 const ONE_AM_NAME = /(?:^|\s)1\s*am(?:\s+wallet)?(?:$|\s)/i;
 const ONE_AM_RDNS = /(?:^|[._-])(?:1am|oneam)(?:[._-]|$)/i;
-export const is1AM = (wallet: WalletChoice) =>
-  wallet.api.apiVersion.split('.')[0] === '4'
-  && (ONE_AM_NAME.test(wallet.api.name.trim()) || ONE_AM_RDNS.test(wallet.api.rdns ?? ''));
+export const is1AM = (wallet: WalletChoice) => {
+  const { api } = wallet;
+  const version = typeof api.apiVersion === 'string' ? api.apiVersion : '';
+  const name = typeof api.name === 'string' ? api.name.trim() : '';
+  const rdns = typeof api.rdns === 'string' ? api.rdns : '';
+  return version.split('.')[0] === '4'
+    && (ONE_AM_NAME.test(name) || ONE_AM_RDNS.test(rdns));
+};
 export function discoverWallets(injected: unknown = window.midnight): WalletChoice[] {
   if (!injected || typeof injected !== 'object') return [];
   return Object.entries(injected).filter(([id, api]) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
-    && api && typeof api.name === 'string' && typeof api.rdns === 'string'
+    api && typeof api === 'object'
     && typeof api.apiVersion === 'string' && typeof api.connect === 'function'
+    && (typeof api.name === 'string' || typeof api.rdns === 'string')
     && is1AM({ id, api: api as InitialAPI }),
   ).map(([id, api]) => ({ id, api: api as InitialAPI }));
 }
